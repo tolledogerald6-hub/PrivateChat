@@ -1,0 +1,18 @@
+
+body{font-family:Arial;background:#0b0b0b;color:#ddd;margin:0;padding:10px;}
+.card{background:#121212;padding:20px;border-radius:8px;margin:auto;width:90%;max-width:900px;}
+.topbar{display:flex;justify-content:space-between;align-items:center;}
+.container{display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;}
+.left{width:220px;background:#121212;padding:10px;border-radius:8px;height:520px;overflow:auto;}
+.main{flex:1;background:#0a0a0a;padding:10px;border-radius:8px;height:520px;display:flex;flex-direction:column;}
+#chatbox{flex:1;background:#050505;padding:10px;border-radius:4px;overflow:auto;margin-bottom:10px;}
+.input-row{display:flex;gap:6px;align-items:center;}
+.input-row input[type=file]{width:120px;}
+.msg{background:#1b1b2f;padding:8px;margin-bottom:8px;border-radius:8px;}
+.meta{font-size:11px;color:#bbb;margin-top:6px;}
+.seen{color:#4ddc9b;}
+.sent{color:#888;}
+.btn{background:#333;color:#fff;padding:6px 10px;border-radius:6px;text-decoration:none;}
+.controls{margin-top:8px;background:#111;padding:8px;border-radius:6px;}
+.error{color:#ff7777;}
+@media(max-width:800px){ .container{flex-direction:column;} .left{width:100%;height:auto;} .main{height:60vh;} }

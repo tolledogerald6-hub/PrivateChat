@@ -39,7 +39,7 @@ class User(db.Model):
     username = db.Column(db.String(100), unique=True)
     password_hash = db.Column(db.String(300))
 
-DEFAULT_USERS = {'you':'1234','asawa':'1234'}
+DEFAULT_USERS = {'M':'1234','Y':'1234'}
 ADMIN_PASS = os.environ.get('ADMIN_PASS','admin123')
 
 def hash_pw(pw):

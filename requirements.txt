@@ -4,3 +4,4 @@ flask_socketio
 eventlet
 pillow
 pycryptodome
+gunicorn

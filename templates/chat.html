@@ -1,41 +1,66 @@
-<!DOCTYPE html><html><head><meta charset="utf-8"><title>Chat</title><link rel="stylesheet" href="/static/css/style.css">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
-</head><body>
-<div class="topbar"><h3>Secure Chat - <span id="me">{{ user }}</span></h3><a href="/logout" class="btn">Logout</a></div>
-<div class="container"><div class="left"><h4>Online</h4><ul id="online_list"></ul><h4>Controls</h4>
-<input id="newpass" placeholder="new password"><button onclick="changePass()">Change</button>
-<div><label>Backup passphrase</label><input id="bpass"><button onclick="doBackup()">Backup</button></div>
-<div><label>Auto-delete days</label><input id="days" value="30" style="width:60px"><button onclick="autoDelete()">Delete</button></div>
-</div><div class="main"><div id="chatbox"></div><div id="typing"></div>
-<div class="input-row"><input id="msg" placeholder="Type message..."><button onclick="sendText()">Send</button>
-<input type="file" id="imgfile"><button onclick="sendImage()">Send Image</button>
-<input type="file" id="audfile"><button onclick="sendAudio()">Send Voice</button></div>
-<div class="controls"><label>Local encryption passphrase:</label><input id="pass"><button onclick="savePass()">Save</button></div></div></div>
-<script>
-const socket = io();
-const me = "{{ user }}";
-let passphrase = localStorage.getItem('chat_pass') || '';
-function savePass(){ passphrase=document.getElementById('pass').value; localStorage.setItem('chat_pass',passphrase); alert('Saved locally'); }
-function enc(t){ if(!passphrase) return t; return CryptoJS.AES.encrypt(t, passphrase).toString(); }
-function dec(c){ if(!passphrase) return c; try{ const b=CryptoJS.AES.decrypt(c, passphrase); return b.toString(CryptoJS.enc.Utf8) || '[bad]'; }catch(e){return '[err]'} }
-function addMessage(m){ if(m.deleted) return; const box=document.getElementById('chatbox'); let html='<div class="msg"><b>'+m.sender+':</b> '; if(m.image) html+='<br><img src="'+m.image+'" width="200">'; else if(m.audio) html+='<br><audio controls src="'+m.audio+'"></audio>'; else html+= dec(m.text); html+='<div class="meta">'+new Date(m.timestamp).toLocaleString()+' '+(m.seen?'<span class="seen">✔✔</span>':'<span class="sent">✔</span>')+' <button onclick="del('+m.id+')">Delete</button></div></div>'; box.innerHTML+=html; box.scrollTop=box.scrollHeight; }
-function loadHistory(){ fetch('/history').then(r=>r.json()).then(data=>{ document.getElementById('chatbox').innerHTML=''; data.forEach(addMessage); }); }
-socket.on('connect', ()=>{ loadHistory(); });
-socket.on('new_message', m=>{ addMessage(m); if(Notification && Notification.permission!=='granted') Notification.requestPermission(); if(Notification.permission==='granted' && m.sender!==me) new Notification('New', {body: m.sender+': '+(m.text? dec(m.text): (m.image? 'Image':'Voice'))}); });
-socket.on('delete_message', d=> loadHistory());
-socket.on('message_seen', d=> loadHistory());
-socket.on('online', o=>{ let ul=document.getElementById('online_list'); ul.innerHTML=''; for(const k in o) if(o[k]) ul.innerHTML+='<li>'+k+'</li>'; });
-socket.on('typing', d=> document.getElementById('typing').innerText = d.typing? d.user+' is typing...' : '');
-let typingTimer;
-document.getElementById('msg').addEventListener('input', ()=>{ socket.emit('typing',{typing:true}); clearTimeout(typingTimer); typingTimer=setTimeout(()=>socket.emit('typing',{typing:false}),1000); });
-function sendText(){ const v=document.getElementById('msg').value; if(!v) return; socket.emit('send',{text: enc(v)}); document.getElementById('msg').value=''; }
-function del(id){ socket.emit('delete',{id:id}); }
-function sendImage(){ const f=document.getElementById('imgfile').files[0]; if(!f) return alert('choose'); const fd=new FormData(); fd.append('image',f); fetch('/upload_image',{method:'POST',body:fd}); }
-function sendAudio(){ const f=document.getElementById('audfile').files[0]; if(!f) return alert('choose'); const fd=new FormData(); fd.append('audio',f); fetch('/upload_audio',{method:'POST',body:fd}); }
-function changePass(){ const p=document.getElementById('newpass').value; fetch('/change_password',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'old='+prompt('old password')+'&new='+p}).then(r=>r.json()).then(j=>{ if(j.ok) alert('changed'); else alert('failed'); }); }
-function doBackup(){ const p=document.getElementById('bpass').value; fetch('/backup',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'pass='+encodeURIComponent(p)}).then(r=>r.json()).then(j=>{ alert('Backup saved: '+j.file); }); }
-function autoDelete(){ const d=document.getElementById('days').value; fetch('/auto_delete_old?days='+d).then(r=>r.json()).then(j=>alert('deleted '+j.deleted)); }
-window.addEventListener('focus', ()=>{ fetch('/history').then(r=>r.json()).then(data=>{ data.forEach(m=>{ if(!m.seen && m.sender!==me) socket.emit('seen',{id:m.id}); }); }); });
-loadHistory();
-</script></body></html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Private Chat</title>
+
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        #messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+        }
+
+        #inputArea {
+            display: flex;
+            padding: 10px;
+            gap: 5px;
+        }
+
+        #messageInput {
+            flex: 1;
+            padding: 10px;
+            font-size: 16px;
+        }
+
+        button {
+            padding: 10px 15px;
+            font-size: 16px;
+        }
+    </style>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+</head>
+<body>
+    <h2 style="text-align:center; padding:10px; margin:0;">Private Chat</h2>
+
+    <div id="messages"></div>
+
+    <div id="inputArea">
+        <input id="messageInput" placeholder="Type message..." />
+        <button onclick="sendMessage()">Send</button>
+    </div>
+
+    <script>
+        const socket = io();
+
+        socket.on('message', function(msg){
+            let box = document.getElementById('messages');
+            box.innerHTML += "<p>" + msg + "</p>";
+            box.scrollTop = box.scrollHeight;  // auto scroll
+        });
+
+        function sendMessage(){
+            let msg = document.getElementById('messageInput').value;
+            if(msg.trim() === "") return;
+            socket.send(msg);
+            document.getElementById('messageInput').value = "";
+        }
+    </script>
+</body>
